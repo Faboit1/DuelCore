@@ -310,8 +310,18 @@ public final class ProfileService implements Listener {
     }
 
     private void track(UUID uuid, CompletableFuture<?> future) {
-        pendingWrites.put(uuid, future);
-        future.whenComplete((r, e) -> pendingWrites.remove(uuid, future));
+        track(pendingWrites, uuid, future);
+    }
+
+    /**
+     * Chains {@code future} onto the writes already pending for {@code uuid}: the stored future completes only once
+     * every tracked write has finished (the DB pool may run several at once), and is removed when it is still the
+     * latest one.
+     */
+    static void track(Map<UUID, CompletableFuture<?>> pending, UUID uuid, CompletableFuture<?> future) {
+        CompletableFuture<?> f = future.handle((r, e) -> null);
+        CompletableFuture<?> all = pending.merge(uuid, f, (a, b) -> CompletableFuture.allOf(a, b));
+        all.whenComplete((r, e) -> pending.remove(uuid, all));
     }
 
     public int pendingWrites() {

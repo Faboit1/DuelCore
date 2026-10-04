@@ -1212,19 +1212,35 @@ public final class MatchService implements Runnable {
                 if (player != null) {
                     unfreeze(player);
                     player.setWorldBorder(null);
-                    KitManager.resetState(player, 20);
-                    player.teleport(plugin.hub().spawn());
+                    toHub(player);
                 }
             }
-            for (UUID s : m.spectators()) {
+            for (UUID s : new ArrayList<>(m.spectators())) {
                 Player sp = Bukkit.getPlayer(s);
-                if (sp != null) sp.teleport(plugin.hub().spawn());
+                if (sp == null) continue;
+                // restores invulnerability, collision, flight and the border; the hub (items, tags) while running
+                plugin.spectate().leave(sp, plugin.isEnabled());
+                if (!plugin.isEnabled()) toHub(sp);
             }
             m.state = Match.State.ENDED;
             runEndListeners(m); // e.g. Keep Queuing forgets the kits chosen before this match
         }
         matches.clear();
         byPlayer.clear();
+    }
+
+    /**
+     * cancelAll: the hub with its items while the plugin runs (season reset); on disable just a clean state and the
+     * hub spawn, synchronously (no hub items left behind by a plugin that is going away).
+     */
+    private void toHub(Player player) {
+        if (plugin.isEnabled()) {
+            plugin.hub().send(player);
+            return;
+        }
+        KitManager.resetState(player, 20);
+        if (player.getGameMode() == GameMode.SPECTATOR) player.setGameMode(GameMode.ADVENTURE);
+        player.teleport(plugin.hub().spawn());
     }
 
     // ------------------------------------------------------------------ helpers

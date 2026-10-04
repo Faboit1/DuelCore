@@ -462,28 +462,53 @@ public final class TestKitPlugin extends JavaPlugin implements Listener {
         return true;
     }
 
+    /**
+     * The bot script {@code name} refers to: {@code <name>.js} (or {@code name} itself when it ends in .js), a file that
+     * resolves inside {@code bots}. Null for anything else (option-like names, paths leaving the directory, ...).
+     */
+    private static @org.jetbrains.annotations.Nullable File script(File bots, String name) {
+        if (name.startsWith("-") || name.startsWith(".")) return null;
+        String file = name.endsWith(".js") ? name : name + ".js";
+        try {
+            File dir = bots.getCanonicalFile();
+            File f = new File(dir, file).getCanonicalFile();
+            if (!dir.equals(f.getParentFile()) || !f.isFile()) return null;
+            return f;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     private void run(CommandSender sender, String[] args) {
         if (args.length < 3 || !SAFE.matcher(args[1]).matches() || !SAFE.matcher(args[2]).matches()) {
-            sender.sendMessage("usage: /dctest run <id> <script.js> [args..]");
+            sender.sendMessage("usage: /dctest run <id> <script[.js]> [args..]");
             return;
         }
         String id = args[1];
+        File bots = new File(root, "bots");
+        File script = script(bots, args[2]);
+        if (script == null) {
+            sender.sendMessage("unknown script " + args[2] + " (a .js file in " + bots.getPath() + ")");
+            return;
+        }
+        List<String> extra = Arrays.asList(Arrays.copyOfRange(args, 3, args.length));
+        for (String a : extra) {
+            // a leading '-' could be read as an option by the script's argument parsing
+            if (a.startsWith("-") || (!SAFE.matcher(a).matches() && !a.matches("[A-Za-z0-9_.,:=\\-]{1,200}"))) {
+                sender.sendMessage("unsafe arg " + a);
+                return;
+            }
+        }
         Process old = processes.remove(id);
         if (old != null) old.destroyForcibly();
-        File bots = new File(root, "bots");
         File node = new File(root, "node-v22.22.2-linux-x64/bin/node");
         File logs = new File(root, "logs");
         logs.mkdirs();
         List<String> cmd = new ArrayList<>();
         cmd.add(node.getAbsolutePath());
-        cmd.add(args[2]);
-        for (String a : Arrays.copyOfRange(args, 3, args.length)) {
-            if (!SAFE.matcher(a).matches() && !a.matches("[A-Za-z0-9_.,:=\\-]{1,200}")) {
-                sender.sendMessage("unsafe arg " + a);
-                return;
-            }
-            cmd.add(a);
-        }
+        cmd.add("--"); // nothing after this is a node option
+        cmd.add(script.getPath());
+        cmd.addAll(extra);
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss"));
         File log = new File(logs, id + "-" + stamp + ".log");
         try {

@@ -11,6 +11,7 @@ import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Block;
+import org.bukkit.block.Container;
 import org.bukkit.entity.Creeper;
 import org.bukkit.entity.EnderCrystal;
 import org.bukkit.entity.EnderPearl;
@@ -19,6 +20,7 @@ import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.TNTPrimed;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -37,6 +39,8 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -45,6 +49,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jspecify.annotations.Nullable;
 import top.cheesesmp.duelcore.DuelCorePlugin;
@@ -330,17 +335,35 @@ public final class MatchListener implements Listener {
             if (event.getAction() != Action.PHYSICAL) event.setCancelled(true);
             return;
         }
+        Block clicked = event.getClickedBlock();
+        if (clicked != null && event.getAction() == Action.RIGHT_CLICK_BLOCK
+            && (clicked.getType() == Material.ENDER_CHEST || clicked.getState(false) instanceof Container)) {
+            // arena chests, barrels, hoppers etc. are not storage: their contents would outlive the match
+            event.setUseInteractedBlock(Event.Result.DENY);
+        }
         KitRules rules = m.kit().rules();
         ItemStack item = event.getItem();
         if (item != null && item.getType().name().endsWith("_SPAWN_EGG") && !rules.spawnEggs()) {
             event.setCancelled(true);
             return;
         }
-        Block block = event.getClickedBlock();
-        if (block != null && block.getType() == Material.RESPAWN_ANCHOR && event.getAction() == Action.RIGHT_CLICK_BLOCK
+        if (clicked != null && clicked.getType() == Material.RESPAWN_ANCHOR && event.getAction() == Action.RIGHT_CLICK_BLOCK
             && !rules.anchors()) {
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * Backstop for {@link #onInteract}: participants can't open block or entity storage (chests, ender chests, chest
+     * minecarts...) during a match. Plugin menus (kit editor etc.) have no location and stay allowed.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInventoryOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player) || match(player) == null) return;
+        Inventory inv = event.getInventory();
+        InventoryType type = inv.getType();
+        if (type == InventoryType.CRAFTING || type == InventoryType.PLAYER) return;
+        if (type == InventoryType.ENDER_CHEST || inv.getLocation() != null) event.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)

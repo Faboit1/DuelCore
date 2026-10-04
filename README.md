@@ -622,7 +622,7 @@ your own pairing rules. `MatchStartEvent` and `MatchEndEvent` are fired for ever
 
 `testkit/` is a separate helper plugin (`DuelCoreTestKit`) plus mineflayer scripts for testing on a real server:
 
-- `/dctest run <id> <script> [args]`, `/dctest stop <id>`, `/dctest ps`. These are console only.
+- `/dctest run <id> <script> [args]` (`<script>` is a `.js` file in `bots/`, the extension optional; no argument may start with `-`), `/dctest stop <id>`, `/dctest ps`. These are console only.
 - Bots log in through an offline-mode guard that only admits loopback `dcbot*` names and the names listed in
   `duelcore-test/allow.txt`.
 - `/tester on|off|status|add <player>|remove <player>|list` (`duelcore.testkit.guard`, op only, alias `/testers`)

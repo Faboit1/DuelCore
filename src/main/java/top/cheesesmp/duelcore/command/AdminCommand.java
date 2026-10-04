@@ -514,6 +514,11 @@ final class AdminCommand {
                     if (kit == null) return 0;
                     double rating = DoubleArgumentType.getDouble(ctx, "rating");
                     withProfile(sender, StringArgumentType.getString(ctx, "player"), p -> {
+                        if (plugin.matches().match(p.uuid()) != null) {
+                            // the match's result would overwrite (or be computed from) the edited rating
+                            send(sender, "admin.rating-in-match", Messages.text("player", p.name()));
+                            return;
+                        }
                         KitStats st = plugin.profiles().stats(p, kit.id());
                         st.rating = rating;
                         st.peak = Math.max(st.peak, rating);

@@ -9,6 +9,9 @@ import java.util.concurrent.Executor;
 import org.bukkit.Chunk;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.World;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Chest;
+import org.bukkit.block.Container;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -186,6 +189,7 @@ public final class RegionJob {
                     entity.remove();
                     entitiesRemoved++;
                 }
+                clearContainers();
                 if (releaseTickets) {
                     for (Chunk chunk : chunks) chunk.removePluginChunkTicket(plugin);
                     for (long[] c : chunkCoords) world.unloadChunkRequest((int) c[0], (int) c[1]);
@@ -200,6 +204,24 @@ public final class RegionJob {
             }
             default -> {
                 return true;
+            }
+        }
+    }
+
+    /**
+     * Empties chests, barrels, hoppers etc. inside the region: the snapshot only holds block data, so a container that
+     * stayed in place would otherwise keep what a match put in it.
+     */
+    private void clearContainers() {
+        for (Chunk chunk : chunks) {
+            for (BlockState state : chunk.getTileEntities(false)) {
+                if (!(state instanceof Container container)) continue;
+                int x = state.getX() - ox;
+                int y = state.getY() - oy;
+                int z = state.getZ() - oz;
+                if (x < 0 || y < 0 || z < 0 || x >= target.sizeX() || y >= target.sizeY() || z >= target.sizeZ()) continue;
+                if (container instanceof Chest chest) chest.getBlockInventory().clear();
+                else container.getInventory().clear();
             }
         }
     }

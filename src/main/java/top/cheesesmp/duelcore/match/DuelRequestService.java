@@ -26,7 +26,7 @@ import top.cheesesmp.duelcore.profile.DuelRequests;
 /** Unranked challenges: /duel &lt;player&gt; &lt;kit&gt;, accept or deny within 60 seconds. */
 public final class DuelRequestService implements Listener, Runnable {
 
-    public enum Result { SENT, SELF, OFFLINE, DISABLED_BY_TARGET, FRIENDS_ONLY, BUSY, TARGET_BUSY, ALREADY_SENT, NO_REQUEST, ACCEPTED }
+    public enum Result { SENT, SELF, OFFLINE, DISABLED_BY_TARGET, FRIENDS_ONLY, BUSY, TARGET_BUSY, ALREADY_SENT, NO_REQUEST, ACCEPTED, KIT_DISABLED }
 
     public record Request(UUID from, String fromName, UUID to, String kit, long expires) {
     }
@@ -43,6 +43,7 @@ public final class DuelRequestService implements Listener, Runnable {
 
     public Result send(Player from, Player to, Kit kit) {
         if (from.equals(to)) return Result.SELF;
+        if (!kit.enabled()) return Result.KIT_DISABLED;
         if (plugin.matches().match(from.getUniqueId()) != null) return Result.BUSY;
         if (plugin.matches().match(to.getUniqueId()) != null) return Result.TARGET_BUSY;
         PlayerProfile target = plugin.profiles().get(to);
@@ -88,6 +89,7 @@ public final class DuelRequestService implements Listener, Runnable {
         Player challenger = Bukkit.getPlayer(from);
         Kit kit = plugin.kits().get(r.kit());
         if (challenger == null || kit == null) return Result.OFFLINE;
+        if (!kit.enabled()) return Result.KIT_DISABLED; // disabled since the challenge was sent
         if (plugin.matches().match(from) != null) return Result.TARGET_BUSY;
         if (plugin.matches().match(to.getUniqueId()) != null) return Result.BUSY;
         plugin.matches().create(List.of(List.of(challenger), List.of(to)), kit, false, Match.Origin.DUEL);

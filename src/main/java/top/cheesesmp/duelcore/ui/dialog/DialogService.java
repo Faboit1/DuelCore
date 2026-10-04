@@ -481,7 +481,8 @@ public final class DialogService {
         return n == 0 ? 0 : sum / n;
     }
 
-    private boolean spectatable(Match m) {
+    /** No participant turned off {@code ALLOW_SPECTATORS}. */
+    boolean spectatable(Match m) {
         for (Participant p : m.participants()) {
             PlayerProfile profile = plugin.profiles().get(p.uuid());
             if (profile != null && !profile.setting(Setting.ALLOW_SPECTATORS)) return false;

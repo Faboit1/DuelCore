@@ -204,6 +204,7 @@ duel:
     target_busy: "<muted><text><player></text> is in a match.</muted>"
     already_sent: "<muted>You already challenged <text><player></text>.</muted>"
     no_request: "<muted>No open challenge.</muted>"
+    kit_disabled: "<bad>That kit is disabled right now."
 
 spectate:
   started: "<muted>Spectating <text><red></text> vs <text><blue></text> · <kit>. Use /leave to stop · left-click a fighter to watch through their eyes.</muted>"
@@ -648,6 +649,7 @@ admin:
   not-in-match: "<muted>That player isn't in a match.</muted>"
   match-ended: "<muted>Match #<id> ended without a result.</muted>"
   rating-set: "<muted>Set <text><player></text>'s <kit> rating to <text><rating></text>.</muted>"
+  rating-in-match: "<bad><text><player></text> is in a match. Set their rating once it is over."
   games-set: "<muted>Set <text><player></text>'s games to <text><games></text>.</muted>"
   region-set: "<muted><text><player></text> region: <text><region></text></muted>"
   country-set: "<muted><text><player></text> country: <text><country></text></muted>"

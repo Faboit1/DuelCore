@@ -126,7 +126,8 @@ match:
   # Disconnect saves: when a player's connection drops in a ranked match (not when they leave), the match ends with
   # no result and nobody's Elo changes, this many times per player per day (UTC); after that a drop is a forfeit.
   # 0 = off. Behind a proxy a drop looks like a normal quit, so a quit also counts as a drop when the player sent no
-  # movement or input for disconnect-idle-seconds before it (0 = only the server's own timeout reasons).
+  # movement or input for disconnect-idle-seconds before it (0 = only the server's own timeout reasons). That idle
+  # rule only applies mid-fight while the leaver is not behind on rounds; otherwise such a quit is a forfeit.
   disconnect-saves-per-day: 5
   disconnect-idle-seconds: 5
   # /leave before the first fight of a 1v1 starts ends it at once with no result (no Elo, not saved) and the leaver

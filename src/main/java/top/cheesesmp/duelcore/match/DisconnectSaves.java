@@ -17,6 +17,7 @@ import org.bukkit.event.player.PlayerInputEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.jspecify.annotations.Nullable;
 import top.cheesesmp.duelcore.DuelCorePlugin;
 import top.cheesesmp.duelcore.config.Messages;
 
@@ -28,7 +29,9 @@ import top.cheesesmp.duelcore.config.Messages;
  * <p>A quit is a connection drop when the server says so ({@code TIMED_OUT}, {@code ERRONEOUS_STATE}) or, behind a
  * proxy (which closes the backend connection normally when the client times out), when the player sent no movement,
  * look or input for {@code match.disconnect-idle-seconds} before the quit: a real drop goes silent for the proxy's
- * read timeout first, someone clicking Disconnect mid-fight was still moving. Kicks never count.
+ * read timeout first, someone clicking Disconnect mid-fight was still moving. The idle rule only applies while the
+ * match is fighting and the leaver's team is not behind on score (so standing still while losing, or between rounds,
+ * and then quitting stays a forfeit). Kicks never count.
  *
  * <p>Used saves are kept in {@code dc_disconnect_saves} (loaded on join) so a restart doesn't hand out new ones.
  */
@@ -70,9 +73,25 @@ public final class DisconnectSaves implements Listener {
             case DISCONNECTED -> {
                 Long last = lastActive.get(player.getUniqueId());
                 long idleMs = plugin.settings().disconnectIdleSeconds * 1000L;
-                yield idleMs > 0 && last != null && System.currentTimeMillis() - last >= idleMs;
+                yield idleMs > 0 && last != null && System.currentTimeMillis() - last >= idleMs
+                    && idleRuleApplies(plugin.matches().match(player.getUniqueId()), player.getUniqueId());
             }
         };
+    }
+
+    /** The idle rule only counts mid-fight, for a leaver whose team is not behind on score. */
+    static boolean idleRuleApplies(@Nullable Match match, UUID player) {
+        if (match == null) return false;
+        Participant p = match.participant(player);
+        if (p == null) return false;
+        int best = 0;
+        for (int t = 0; t < match.teamCount(); t++) if (t != p.team()) best = Math.max(best, match.score(t));
+        return idleRuleApplies(match.state(), match.score(p.team()), best);
+    }
+
+    /** Pure decision: fighting, and the leaver's team score is at least the best other team's. */
+    static boolean idleRuleApplies(Match.State state, int teamScore, int bestOtherScore) {
+        return state == Match.State.FIGHTING && teamScore >= bestOtherScore;
     }
 
     /** Uses one of today's saves; false when none are left (or saves are off). */

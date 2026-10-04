@@ -732,12 +732,16 @@ public final class QueueDialog {
                 if (plugin.queue().isQueued(player.getUniqueId(), kit.id())) {
                     plugin.queue().leave(player, kit);
                     sound(player, MenuSound.TOGGLE_OFF);
+                } else if (!mayQueue(player)) {
+                    reopen(player, tab);
+                    return;
                 } else if (join(player, kit)) {
                     sound(player, MenuSound.TOGGLE_ON); // (a refusal played the deny sound)
                 }
                 reopen(player, tab);
             }
             case "queue/all" -> {
+                if (!mayQueue(player)) return;
                 queueAll(player, validTab(tab));
                 reopen(player, tab);
             }
@@ -757,6 +761,7 @@ public final class QueueDialog {
             }
             // direct join: the results "Play again" button and test bots ({kit, mode?})
             case "queue/join" -> {
+                if (!mayQueue(player)) return;
                 Kit kit = kit(data);
                 if (kit == null) return;
                 QueueMode mode = QueueMode.parse(data.get("mode"));
@@ -776,6 +781,14 @@ public final class QueueDialog {
                 // unknown queue action: ignore
             }
         }
+    }
+
+    /** Joining a queue needs {@code duelcore.queue}, like /queue; leaving and browsing don't. */
+    private boolean mayQueue(Player player) {
+        if (player.hasPermission("duelcore.queue")) return true;
+        plugin.messages().send(player, "command.no-permission");
+        sound(player, MenuSound.DENY);
+        return false;
     }
 
     private @Nullable Kit kit(Map<String, String> data) {

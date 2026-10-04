@@ -16,6 +16,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.jspecify.annotations.Nullable;
 import top.cheesesmp.duelcore.DuelCorePlugin;
+import top.cheesesmp.duelcore.config.Messages;
 import top.cheesesmp.duelcore.kit.Kit;
 import top.cheesesmp.duelcore.match.Match;
 import top.cheesesmp.duelcore.match.SpectateService;
@@ -39,6 +40,8 @@ public final class ClickRouter implements Listener {
 
     private final DuelCorePlugin plugin;
     private final Map<UUID, Long> lastClick = new HashMap<>();
+    /** Server tick of the last navigation click ({@link #unguarded}) per player. */
+    private final Map<UUID, Integer> lastNavTick = new HashMap<>();
     private final Map<String, Handler> handlers = new HashMap<>();
 
     public ClickRouter(DuelCorePlugin plugin) {
@@ -59,8 +62,16 @@ public final class ClickRouter implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = event.getIdentifier().value();
-        // exit actions (what Escape sends) are harmless to repeat and must never be dropped
-        if (!unguarded(action)) {
+        // close actions (what Escape sends) are harmless to repeat and must never be dropped; the exit navigation
+        // actions skip the double-click guard but still run at most once per tick
+        if (unguarded(action)) {
+            if (!isClose(action)) {
+                int tick = Bukkit.getCurrentTick();
+                Integer prev = lastNavTick.put(player.getUniqueId(), tick);
+                if (prev != null && prev == tick) return;
+                if (lastNavTick.size() > 512) lastNavTick.keySet().removeIf(u -> Bukkit.getPlayer(u) == null);
+            }
+        } else {
             long now = System.currentTimeMillis();
             Long last = lastClick.get(player.getUniqueId());
             if (last != null && now - last < 150) return; // double-click / spam guard
@@ -91,9 +102,10 @@ public final class ClickRouter implements Listener {
     }
 
     /**
-     * Clicks the spam guard never drops: the close clicks, {@code party/menu}, the exit action (Back) of the party
-     * dialogs, and {@code settings/back}, the settings country dialog's. Escape runs a dialog's exit action and closes the screen (after-action CLOSE), so a dropped one would
-     * leave the server tracking (and refreshing) a dialog the player closed. They only close or navigate.
+     * Clicks the 150 ms spam guard never drops: the close clicks, {@code party/menu}, the exit action (Back) of the
+     * party dialogs, and {@code settings/back}, the settings country dialog's. Escape runs a dialog's exit action and
+     * closes the screen (after-action CLOSE), so a dropped one would leave the server tracking (and refreshing) a
+     * dialog the player closed. They only close or navigate; the navigation ones are still limited to one per tick.
      */
     static boolean unguarded(String action) {
         return isClose(action) || action.equals("party/menu") || action.equals("settings/back");
@@ -122,6 +134,11 @@ public final class ClickRouter implements Listener {
                 plugin.dialogs().spectate(player, query.length() > 32 ? query.substring(0, 32) : query);
             }
             case "spectate/match" -> {
+                if (!player.hasPermission("duelcore.spectate")) {
+                    plugin.messages().send(player, "command.no-permission");
+                    deny(player);
+                    return;
+                }
                 int id;
                 try {
                     id = Integer.parseInt(data.getOrDefault("id", "-1"));
@@ -131,6 +148,12 @@ public final class ClickRouter implements Listener {
                 Match match = plugin.matches().byId(id);
                 if (match == null || match.isOver()) {
                     plugin.messages().send(player, "spectate.ended");
+                    deny(player);
+                    return;
+                }
+                if (!plugin.dialogs().spectatable(match) && !player.hasPermission("duelcore.spectate.bypass")) {
+                    String names = String.join(", ", match.participants().stream().map(p -> p.name()).toList());
+                    plugin.messages().send(player, "spectate.result.disallowed", Messages.text("player", names));
                     deny(player);
                     return;
                 }
@@ -156,16 +179,32 @@ public final class ClickRouter implements Listener {
                 plugin.dialogs().duelPicker(player, target);
             }
             case "duel/send" -> {
+                if (!player.hasPermission("duelcore.duel")) {
+                    plugin.messages().send(player, "command.no-permission");
+                    deny(player);
+                    return;
+                }
                 Player target = uuidPlayer(data.get("target"));
-                Kit kit = plugin.kits().get(data.getOrDefault("kit", ""));
-                if (target == null || kit == null) {
+                String kitId = data.getOrDefault("kit", "");
+                Kit kit = plugin.kits().get(kitId);
+                if (target == null) {
                     plugin.messages().send(player, "duel.result.offline");
+                    deny(player);
+                    return;
+                }
+                if (kit == null || !kit.enabled()) {
+                    plugin.messages().send(player, "command.unknown-kit", Messages.text("kit", kitId));
                     deny(player);
                     return;
                 }
                 plugin.commands().sendDuel(player, target, kit);
             }
             case "duel/accept" -> {
+                if (!player.hasPermission("duelcore.duel")) {
+                    plugin.messages().send(player, "command.no-permission");
+                    deny(player);
+                    return;
+                }
                 UUID from = uuid(data.get("from"));
                 if (from != null) plugin.commands().acceptDuel(player, from);
             }
